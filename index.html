@@ -1,0 +1,1277 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+
+<style id="webmakerstyle">
+
+</style>
+</head>
+<body>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ShapeScape</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <style>
+        /* CSS Reset & Base */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+            touch-action: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        /* Custom Properties */
+        :root {
+            --transition-fast: 150ms;
+            --transition-normal: 300ms;
+            --ease-out: cubic-bezier(0.0, 0, 0.2, 1);
+            --space-sm: 16px;
+            --space-md: 24px;
+        }
+
+        /* Game Container */
+        #game-world {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, #e0e0e0, #ffffff);
+            cursor: crosshair;
+        }
+
+        #game-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* UI Overlay */
+        .ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .ui-overlay > * {
+            pointer-events: auto;
+        }
+
+        /* HUD - Top Left */
+        .hud-info {
+            position: absolute;
+            top: var(--space-sm);
+            left: var(--space-sm);
+            color: rgba(0, 0, 0, 0.6);
+            font-size: 18px;
+            font-weight: 600;
+            text-shadow: 0 1px 3px rgba(255, 255, 255, 0.9);
+            line-height: 1.5;
+        }
+
+        /* Shape Hotbar - Bottom Center */
+        .shape-hotbar {
+            position: absolute;
+            bottom: var(--space-md);
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 12px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+        }
+
+        .shape-button {
+            width: 96px;
+            height: 96px;
+            background: rgba(240, 240, 240, 1);
+            border: 3px solid transparent;
+            border-radius: 12px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: all var(--transition-fast) var(--ease-out);
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .shape-button:hover {
+            background: rgba(230, 230, 230, 1);
+            transform: translateY(-2px);
+        }
+
+        .shape-button:active {
+            transform: translateY(0);
+        }
+
+        .shape-button.selected {
+            border-color: #4CAF50;
+            background: rgba(76, 175, 80, 0.1);
+            box-shadow: 0 0 16px rgba(76, 175, 80, 0.4);
+        }
+
+        .shape-icon {
+            font-size: 32px;
+            margin-bottom: 4px;
+        }
+
+        .shape-name {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        /* Material selector */
+        .material-selector {
+            position: absolute;
+            bottom: 144px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.94);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+        }
+        .material-button {
+            width: 96px;
+            height: 76px;
+            border: 3px solid transparent;
+            border-radius: 12px;
+            background: #f1f1f1;
+            color: #333;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            font: 600 15px 'Inter', sans-serif;
+            transition: transform var(--transition-fast) var(--ease-out), background var(--transition-fast) var(--ease-out);
+        }
+        .material-button:hover { transform: translateY(-2px); background: #e9e9e9; }
+        .material-button.selected { border-color: #4CAF50; background: rgba(76, 175, 80, 0.12); }
+        .material-swatch { width: 24px; height: 24px; border-radius: 50%; box-shadow: inset 0 1px 4px rgba(255,255,255,.55), 0 1px 3px rgba(0,0,0,.2); }
+        .aim-reticle { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); color: rgba(0,0,0,.55); font: 700 24px/1 sans-serif; text-shadow: 0 1px 2px white; pointer-events: none !important; }
+        .throw-charge { position: absolute; top: 54px; left: 50%; transform: translateX(-50%); width: 260px; padding: 9px 12px; border-radius: 12px; background: rgba(255,255,255,.9); box-shadow: 0 4px 16px rgba(0,0,0,.12); color: #333; font-size: 14px; font-weight: 700; text-align: center; opacity: 0; transition: opacity 120ms ease; }
+        .throw-charge.visible { opacity: 1; }
+        .throw-charge-track { height: 10px; margin-top: 6px; border-radius: 99px; background: #e4e4e4; overflow: hidden; }
+        .throw-charge-fill { height: 100%; width: 0%; border-radius: inherit; background: linear-gradient(90deg,#65d65f,#ffd84d,#ff6b4d); box-shadow: 0 0 12px rgba(255,130,50,.45); }
+        .size-control { position:absolute; bottom:252px; left:50%; transform:translateX(-50%); width:min(420px,calc(100% - 36px)); padding:12px 18px; border-radius:16px; background:rgba(255,255,255,.95); box-shadow:0 8px 28px rgba(0,0,0,.14); color:#333; }
+        .size-control-head { display:flex; justify-content:space-between; align-items:center; font-size:15px; font-weight:700; margin-bottom:7px; }
+        #size-slider { display:block; width:100%; height:28px; accent-color:#28a9e8; cursor:pointer; }
+        .sandbox-tools { position:absolute; right:16px; top:calc(50% - 100px); display:grid; grid-template-columns:repeat(2,96px); gap:10px; }
+        .tool-button { width:96px; height:96px; border:2px solid rgba(255,255,255,.9); border-radius:16px; background:rgba(255,255,255,.92); color:#263747; box-shadow:0 5px 18px rgba(0,0,0,.14); cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; font:700 13px 'Inter',sans-serif; transition:transform 150ms ease,background 150ms ease,box-shadow 150ms ease; touch-action:none; }
+        .tool-button:hover { transform:translateY(-2px); }
+        .tool-button:active { transform:scale(.96); }
+        .tool-icon { font-size:26px; line-height:1; }
+        .tool-button.active { border-color:#28a9e8; background:rgba(49,177,239,.17); box-shadow:0 0 18px rgba(36,170,235,.48); }
+        #explosion-button.active { border-color:#ff874d; background:rgba(255,132,76,.18); box-shadow:0 0 18px rgba(255,132,76,.42); }
+        .clear-confirm { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:min(390px,calc(100% - 36px)); padding:22px; border-radius:18px; background:rgba(255,255,255,.98); box-shadow:0 14px 48px rgba(0,0,0,.28); text-align:center; color:#263747; z-index:5; }
+        .clear-confirm.hidden { display:none; }
+        .clear-confirm h3 { font-size:22px; margin-bottom:8px; }
+        .clear-confirm p { font-size:16px; line-height:1.4; margin-bottom:16px; color:#59636d; }
+        .confirm-actions { display:flex; justify-content:center; gap:12px; }
+        .confirm-actions button { width:96px; height:96px; border:0; border-radius:14px; background:#e9eef2; color:#263747; font:700 15px 'Inter',sans-serif; cursor:pointer; }
+        .confirm-actions #confirm-clear-button { background:#ff695d; color:white; }
+        @media (max-width: 560px) { .material-selector { gap: 4px; padding: 6px; } .material-button { width: 78px; height: 76px; font-size: 13px; } .sandbox-tools { right:10px; grid-template-columns:repeat(2,82px); gap:7px; } .tool-button { width:82px; height:82px; font-size:11px; } .size-control { bottom:252px; } }
+
+        /* Pointer Lock Prompt */
+        .pointer-lock-prompt {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 32px 48px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            font-size: 24px;
+            font-weight: 600;
+            color: #333;
+            cursor: pointer;
+            transition: all var(--transition-normal) var(--ease-out);
+        }
+
+        .pointer-lock-prompt:hover {
+            transform: translate(-50%, -50%) scale(1.05);
+            box-shadow: 0 12px 48px rgba(0, 0, 0, 0.25);
+        }
+
+        .pointer-lock-prompt.hidden {
+            display: none;
+        }
+
+        /* Instructions */
+        .instructions {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 32px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            max-width: 500px;
+            text-align: center;
+        }
+
+        .instructions.hidden {
+            display: none;
+        }
+
+        .instructions h2 {
+            font-size: 32px;
+            margin-bottom: 24px;
+            color: #333;
+        }
+
+        .instructions p {
+            font-size: 18px;
+            line-height: 1.6;
+            color: #666;
+            margin-bottom: 16px;
+        }
+
+        .instructions button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            font-size: 20px;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all var(--transition-fast) var(--ease-out);
+        }
+
+        .instructions button:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+        }
+
+        .instructions button:active {
+            transform: translateY(0);
+        }
+    </style>
+</head>
+<body>
+    <div id="game-world">
+        <canvas id="game-canvas"></canvas>
+        
+        <div class="ui-overlay">
+            <!-- Instructions -->
+            <div class="instructions" id="instructions">
+                <h2>ShapeScape</h2>
+                <p><strong>Click a shape</strong> in the hotbar to select it</p>
+                <p><strong>Click anywhere</strong> to spawn the selected shape</p>
+                <p><strong>Click a shape</strong> to grab it; hold to charge a throw</p>
+                <p><strong>Move your mouse</strong> while grabbed to aim and move it</p>
+                <p><strong>Release</strong> to throw it • choose a material below</p>
+                <p><strong>WASD</strong> to move • <strong>Mouse</strong> to look</p>
+                <button id="start-button">Start</button>
+            </div>
+
+            <div class="material-selector" aria-label="Select material">
+                <button class="material-button selected" data-material="rubber"><span class="material-swatch" style="background:#ff5b5b"></span>Rubber</button>
+                <button class="material-button" data-material="metal"><span class="material-swatch" style="background:#9ab1ca"></span>Metal</button>
+                <button class="material-button" data-material="glass"><span class="material-swatch" style="background:#68dfff"></span>Glass</button>
+                <button class="material-button" data-material="slime"><span class="material-swatch" style="background:#8cf45d"></span>Slime</button>
+            </div>
+            <div class="aim-reticle" aria-hidden="true">+</div>
+            <div class="throw-charge" id="throw-charge">THROW POWER<div class="throw-charge-track"><div class="throw-charge-fill" id="throw-charge-fill"></div></div></div>
+
+            <div class="size-control">
+                <div class="size-control-head"><label for="size-slider">SPAWN SIZE</label><span id="size-value">1.0×</span></div>
+                <input id="size-slider" type="range" min="0.5" max="2" step="0.1" value="1" aria-label="Spawn size from 0.5 to 2 times">
+            </div>
+            <div class="sandbox-tools" aria-label="Sandbox tools">
+                <button class="tool-button active" id="gravity-toggle" type="button"><span class="tool-icon">↓</span><span>Gravity ON</span></button>
+                <button class="tool-button" id="vacuum-button" type="button" aria-label="Hold to activate vacuum"><span class="tool-icon">⌀</span><span>Hold Vacuum</span></button>
+                <button class="tool-button" id="explosion-button" type="button"><span class="tool-icon">✹</span><span>Explosion</span></button>
+                <button class="tool-button" id="clear-all-button" type="button"><span class="tool-icon">⌫</span><span>Clear All</span></button>
+            </div>
+            <div class="clear-confirm hidden" id="clear-confirm" role="dialog" aria-modal="true" aria-labelledby="clear-confirm-title">
+                <h3 id="clear-confirm-title">Clear all shapes?</h3>
+                <p>This removes every shape from the sandbox. You can spawn new ones anytime.</p>
+                <div class="confirm-actions"><button id="cancel-clear-button" type="button">Cancel</button><button id="confirm-clear-button" type="button">Clear</button></div>
+            </div>
+
+            <!-- HUD Info -->
+            <div class="hud-info">
+                <div id="shape-count">Shapes: 0</div>
+            </div>
+
+            <!-- Shape Hotbar -->
+            <div class="shape-hotbar">
+                <button class="shape-button selected" data-shape="sphere">
+                    <div class="shape-icon">●</div>
+                    <div class="shape-name">Sphere</div>
+                </button>
+                <button class="shape-button" data-shape="cube">
+                    <div class="shape-icon">■</div>
+                    <div class="shape-name">Cube</div>
+                </button>
+                <button class="shape-button" data-shape="pyramid">
+                    <div class="shape-icon">▲</div>
+                    <div class="shape-name">Pyramid</div>
+                </button>
+                <button class="shape-button" data-shape="cylinder">
+                    <div class="shape-icon">⬭</div>
+                    <div class="shape-name">Cylinder</div>
+                </button>
+                <button class="shape-button" data-shape="torus">
+                    <div class="shape-icon">◯</div>
+                    <div class="shape-name">Torus</div>
+                </button>
+                <button class="shape-button" data-shape="capsule">
+                    <div class="shape-icon">⬬</div>
+                    <div class="shape-name">Capsule</div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/cannon@0.6.2/build/cannon.min.js"></script>
+    <script>
+        /**
+         * ShapeScape - A minimalist 3D physics sandbox
+         * 
+         * Players spawn and manipulate geometric shapes in a clean 3D space.
+         * This implementation includes:
+         * - 3D scene with grid floor and camera
+         * - First-person controls (WASD movement, mouse look)
+         * - Shape spawning system with 6 shape types
+         * - Grab and drag mechanics
+         * - Basic physics simulation
+         */
+      const AUDIO_URLS = {
+    rubber_bounce_sfx:  "https://d2oir5eh8rty2e.cloudfront.net/assets/sounds/effect/rubber_bounce_sfx_c58be543-64e6-40a5-864d-5cca6fa032f8.mp3",
+    metal_clank_sfx:    "https://d2oir5eh8rty2e.cloudfront.net/assets/sounds/effect/metal_clank_sfx_c9614683-5eaf-4fbd-8cb4-9140294a21b3.mp3",
+    glass_shatter_sfx:  "https://d2oir5eh8rty2e.cloudfront.net/assets/sounds/effect/glass_shatter_sfx_a6a66557-277e-4e08-b0e2-ebe11d7fde69.mp3",
+    slime_squelch_sfx:  "https://d2oir5eh8rty2e.cloudfront.net/assets/sounds/effect/slime_squelch_sfx_6d471a71-3b2b-42e2-9ba6-5c784902d821.mp3",
+    vacuum_whoosh_sfx:  "https://d2oir5eh8rty2e.cloudfront.net/assets/sounds/effect/vacuum_whoosh_sfx_8ebfc1e8-ed08-4626-bcb2-290fff90dc9b.mp3",
+    explosion_boom_sfx: "https://d2oir5eh8rty2e.cloudfront.net/assets/sounds/effect/explosion_boom_sfx_41ab5e8b-762f-474a-82bc-6b7808501a08.mp3"
+};
+
+const audioCache = {};
+Object.entries(AUDIO_URLS).forEach(([id, url]) => {
+    const a = new Audio(url);
+    a.preload = 'auto';
+    a.crossOrigin = 'anonymous';
+    audioCache[id] = a;
+});
+
+function playSound(id, volume = 0.6, worldPosition = null, pitch = 1) {
+    const template = audioCache[id];
+    if (!template) return;
+    const sound = template.cloneNode();
+    sound.volume = Math.max(0, Math.min(1, volume));
+    sound.playbackRate = Math.max(0.5, Math.min(2, pitch));
+    if (worldPosition && camera) {
+        const dx = worldPosition.x - camera.position.x;
+        const dy = worldPosition.y - camera.position.y;
+        const dz = worldPosition.z - camera.position.z;
+        const d = Math.sqrt(dx*dx + dy*dy + dz*dz);
+        sound.volume *= 1 / (1 + d * 0.08);
+    }
+    sound.play().catch(() => {});
+}
+
+// Vacuum loop
+let vacuumLoop = null;
+function startVacuumSound() {
+    if (vacuumLoop) return;
+    const src = audioCache['vacuum_whoosh_sfx'];
+    if (!src) return;
+    vacuumLoop = src.cloneNode();
+    vacuumLoop.loop = true;
+    vacuumLoop.volume = 0.35;
+    vacuumLoop.play().catch(() => {});
+}
+function stopVacuumSound() {
+    if (!vacuumLoop) return;
+    try { vacuumLoop.pause(); } catch (e) {}
+    vacuumLoop = null;
+}
+
+        function run() {
+            // Standalone settings: edit these values directly in this HTML file.
+            const gameConfig = {
+                spawnHeight: 1.6,
+                cameraMoveSpeed: 5,
+                throwPowerMultiplier: 12,
+                glassFragility: 12,
+                gravityStrength: 9.8,
+                vacuumPullStrength: 28,
+                explosionForce: 18,
+                explosionRadius: 8,
+                materials: {
+                    rubber: { bounciness: 0.92, friction: 0.82, mass: 0.7, color: '#ff5b5b', roughness: 0.3, metalness: 0.05 },
+                    metal: { bounciness: 0.22, friction: 0.48, mass: 4, color: '#9ab1ca', roughness: 0.22, metalness: 0.88 },
+                    glass: { bounciness: 0.34, friction: 0.28, mass: 1.3, color: '#68dfff', roughness: 0.12, metalness: 0.08 },
+                    slime: { bounciness: 0.08, friction: 0.96, mass: 1.1, color: '#8cf45d', roughness: 0.18, metalness: 0 }
+                }
+            };
+            const gameWorld = document.getElementById('game-world');
+            const canvas = document.getElementById('game-canvas');
+
+            // Initialize Three.js scene
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xf0f0f0);
+            scene.fog = new THREE.Fog(0xf0f0f0, 30, 100);
+
+            // Camera setup
+            const camera = new THREE.PerspectiveCamera(
+                75,
+                canvas.clientWidth / canvas.clientHeight,
+                0.1,
+                1000
+            );
+            camera.position.set(0, 1.6, 5);
+
+            // Renderer setup
+            const renderer = new THREE.WebGLRenderer({ 
+                canvas: canvas,
+                antialias: true 
+            });
+            renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 20, 10);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.camera.left = -30;
+            directionalLight.shadow.camera.right = 30;
+            directionalLight.shadow.camera.top = 30;
+            directionalLight.shadow.camera.bottom = -30;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            scene.add(directionalLight);
+
+            // Physics world setup
+            const world = new CANNON.World();
+            const initialGravity = Number.isFinite(Number(gameConfig.gravityStrength)) ? Number(gameConfig.gravityStrength) : 9.8;
+            world.gravity.set(0, -initialGravity, 0);
+            world.broadphase = new CANNON.NaiveBroadphase();
+            world.solver.iterations = 10;
+
+            // Grid floor
+            const gridHelper = new THREE.GridHelper(100, 100, 0xcccccc, 0xe0e0e0);
+            gridHelper.position.y = 0;
+            scene.add(gridHelper);
+
+            // Floor physics body
+            world.defaultContactMaterial.friction = 0.42;
+            world.defaultContactMaterial.restitution = 0.12;
+            const floorShape = new CANNON.Plane();
+            const floorBody = new CANNON.Body({ mass: 0, material: new CANNON.Material('floor') });
+            floorBody.addShape(floorShape);
+            floorBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
+            world.addBody(floorBody);
+
+            // Game state
+            const gameState = {
+                selectedShape: 'sphere',
+                selectedMaterial: 'rubber',
+                shapes: [],
+                grabbedShape: null,
+                grabStartedAt: 0,
+                throwAim: { x: 0, y: 0 },
+                throwMouseDistance: 0,
+                lastCollisionSoundAt: 0,
+                keys: {},
+                mouseMovement: { x: 0, y: 0 },
+                pointerLocked: false,
+                selectedSize: 1,
+                gravityEnabled: true,
+                vacuumActive: false,
+                explosionArmed: false,
+                skipNextCanvasLock: false
+            };
+
+            // Shape colors (placeholder primaries)
+            const shapeColors = [
+                0xff4444, // Red
+                0x4444ff, // Blue
+                0xffff44, // Yellow
+                0x44ff44, // Green
+                0xff44ff, // Magenta
+                0x44ffff  // Cyan
+            ];
+
+            const defaultMaterials = {
+                rubber: { bounciness: 0.92, friction: 0.82, mass: 0.7, color: '#ff5b5b', roughness: 0.3, metalness: 0.05 },
+                metal: { bounciness: 0.22, friction: 0.48, mass: 4, color: '#9ab1ca', roughness: 0.22, metalness: 0.88 },
+                glass: { bounciness: 0.34, friction: 0.28, mass: 1.3, color: '#68dfff', roughness: 0.12, metalness: 0.08 },
+                slime: { bounciness: 0.08, friction: 0.96, mass: 1.1, color: '#8cf45d', roughness: 0.18, metalness: 0 }
+            };
+            function getMaterialSettings(id) {
+                const configured = gameConfig.materials && gameConfig.materials[id];
+                return Object.assign({}, defaultMaterials[id] || defaultMaterials.rubber, configured || {});
+            }
+
+            const materialPhysics = {};
+            const materialCollisionPairs = new Set();
+            const floorPhysicsMaterial = floorBody.material;
+            Object.keys(defaultMaterials).forEach(id => { materialPhysics[id] = new CANNON.Material(id); });
+            function refreshContactMaterials() {
+                const ids = Object.keys(defaultMaterials);
+                ids.forEach(id => {
+                    const settings = getMaterialSettings(id);
+                    const pairs = [[materialPhysics[id], floorPhysicsMaterial, `floor:${id}`, 0.42, 0.12]];
+                    ids.filter(other => other !== id).forEach(other => pairs.push([materialPhysics[id], materialPhysics[other], [id, other].sort().join(':'), getMaterialSettings(other).friction, getMaterialSettings(other).bounciness]));
+                    pairs.forEach(([a, b, key, otherFriction, otherBounce]) => {
+                        const existing = world.contactmaterials.find(cm => cm.materials && ((cm.materials[0] === a && cm.materials[1] === b) || (cm.materials[0] === b && cm.materials[1] === a)));
+                        const isFloorPair = key.startsWith('floor:');
+                        const friction = isFloorPair ? settings.friction : (settings.friction + otherFriction) * 0.5;
+                        const restitution = isFloorPair ? settings.bounciness : (settings.bounciness + otherBounce) * 0.5;
+                        if (existing) { existing.friction = friction; existing.restitution = restitution; }
+                        else if (!materialCollisionPairs.has(key)) {
+                            world.addContactMaterial(new CANNON.ContactMaterial(a, b, { friction, restitution }));
+                            materialCollisionPairs.add(key);
+                        }
+                    });
+                });
+            }
+            const particles = [];
+            const vacuumParticles = [];
+            const vacuumParticleGeometry = new THREE.SphereGeometry(0.045, 8, 6);
+            const vacuumParticleMaterial = new THREE.MeshBasicMaterial({ color: 0x42cfff, transparent: true, opacity: 0.82, depthWrite: false });
+            for (let i = 0; i < 24; i++) {
+                const particle = new THREE.Mesh(vacuumParticleGeometry, vacuumParticleMaterial);
+                particle.visible = false;
+                scene.add(particle);
+                vacuumParticles.push(particle);
+            }
+            const vacuumCore = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 10), new THREE.MeshBasicMaterial({ color: 0x8beaff, transparent: true, opacity: 0.75, depthWrite: false }));
+            vacuumCore.visible = false;
+            scene.add(vacuumCore);
+            let vacuumEffectTime = 0;
+            const explosionEffects = [];
+            function shatterShape(shapeObj) {
+                if (!shapeObj || shapeObj.shattered) return;
+                shapeObj.shattered = true;
+                const position = shapeObj.mesh.position.clone();
+                for (let i = 0; i < 16; i++) {
+                    const shard = new THREE.Mesh(new THREE.TetrahedronGeometry(0.07 + Math.random() * 0.08), new THREE.MeshBasicMaterial({ color: 0x9beaff, transparent: true, opacity: 0.95 }));
+                    shard.position.copy(position);
+                    scene.add(shard);
+                    particles.push({ mesh: shard, velocity: new THREE.Vector3((Math.random() - .5) * 7, Math.random() * 6, (Math.random() - .5) * 7), life: 0.85 });
+                }
+                world.removeBody(shapeObj.body);
+                scene.remove(shapeObj.mesh);
+                shapeObj.mesh.geometry.dispose();
+                shapeObj.mesh.material.dispose();
+                shapeObj.outline.geometry.dispose();
+                shapeObj.outline.material.dispose();
+                gameState.shapes = gameState.shapes.filter(item => item !== shapeObj);
+                updateShapeCount();
+                playSound('glass_shatter_sfx', 0.85, position, 1 / Math.max(0.72, Math.min(1.45, shapeObj.sizeScale || 1)));
+            }
+            function updateParticles(dt) {
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    const particle = particles[i];
+                    particle.life -= dt;
+                    particle.velocity.y -= 9.8 * dt;
+                    particle.mesh.position.addScaledVector(particle.velocity, dt);
+                    particle.mesh.rotation.x += dt * 7;
+                    particle.mesh.rotation.y += dt * 9;
+                    particle.mesh.material.opacity = Math.max(0, particle.life / 0.85);
+                    if (particle.life <= 0) {
+                        scene.remove(particle.mesh);
+                        particle.mesh.geometry.dispose();
+                        particle.mesh.material.dispose();
+                        particles.splice(i, 1);
+                    }
+                }
+            }
+
+                        // URL-based audio (assets loaded from CDN)
+            const AUDIO_URLS = {
+                rubber_bounce_sfx:  "https://d2oir5eh8rty2e.cloudfront.net/assets/sounds/effect/rubber_bounce_sfx_c58be543-64e6-40a5-864d-5cca6fa032f8.mp3",
+                metal_clank_sfx:    "https://d2oir5eh8rty2e.cloudfront.net/assets/sounds/effect/metal_clank_sfx_c9614683-5eaf-4fbd-8cb4-9140294a21b3.mp3",
+                glass_shatter_sfx:  "https://d2oir5eh8rty2e.cloudfront.net/assets/sounds/effect/glass_shatter_sfx_a6a66557-277e-4e08-b0e2-ebe11d7fde69.mp3",
+                slime_squelch_sfx:  "https://d2oir5eh8rty2e.cloudfront.net/assets/sounds/effect/slime_squelch_sfx_6d471a71-3b2b-42e2-9ba6-5c784902d821.mp3",
+                vacuum_whoosh_sfx:  "https://d2oir5eh8rty2e.cloudfront.net/assets/sounds/effect/vacuum_whoosh_sfx_8ebfc1e8-ed08-4626-bcb2-290fff90dc9b.mp3",
+                explosion_boom_sfx: "https://d2oir5eh8rty2e.cloudfront.net/assets/sounds/effect/explosion_boom_sfx_41ab5e8b-762f-474a-82bc-6b7808501a08.mp3"
+            };
+
+            const audioCache = {};
+            Object.entries(AUDIO_URLS).forEach(([id, url]) => {
+                const a = new Audio(url);
+                a.preload = 'auto';
+                a.crossOrigin = 'anonymous';
+                audioCache[id] = a;
+            });
+
+            function playSound(id, volume = 0.6, worldPosition = null, pitch = 1) {
+                const template = audioCache[id];
+                if (!template) return;
+                const sound = template.cloneNode();
+                sound.volume = Math.max(0, Math.min(1, volume));
+                sound.playbackRate = Math.max(0.5, Math.min(2, pitch));
+                if (worldPosition && camera) {
+                    const dx = worldPosition.x - camera.position.x;
+                    const dy = worldPosition.y - camera.position.y;
+                    const dz = worldPosition.z - camera.position.z;
+                    const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                    sound.volume *= 1 / (1 + d * 0.08);
+                }
+                sound.play().catch(() => {});
+            }
+
+            let vacuumLoop = null;
+            function startVacuumSound() {
+                if (vacuumLoop) return;
+                const src = audioCache['vacuum_whoosh_sfx'];
+                if (!src) return;
+                vacuumLoop = src.cloneNode();
+                vacuumLoop.loop = true;
+                vacuumLoop.volume = 0.35;
+                vacuumLoop.play().catch(() => {});
+            }
+            function stopVacuumSound() {
+                if (!vacuumLoop) return;
+                try { vacuumLoop.pause(); } catch (e) {}
+                vacuumLoop = null;
+            }
+           
+            const materialSoundIds = { rubber: 'rubber_bounce_sfx', metal: 'metal_clank_sfx', glass: 'glass_shatter_sfx', slime: 'slime_squelch_sfx' };
+
+            // UI ticks are synthesized locally as well; no external audio files are needed.
+            document.querySelectorAll('.ui-overlay button').forEach(button => {
+                button.addEventListener('click', () => playSound('ui_click_sfx', 0.16), { passive: true });
+            });
+
+            // Shape creation functions
+            function createShape(type, position, materialId) {
+                const materialKey = materialId || gameState.selectedMaterial;
+                const materialSettings = getMaterialSettings(materialKey);
+                const color = new THREE.Color(materialSettings.color);
+                const scale = gameState.selectedSize;
+                let geometry, shape, mass = 1;
+                const configMass = Math.max(0.1, mass * materialSettings.mass * Math.pow(scale, 3));
+                
+                switch(type) {
+                    case 'sphere':
+                        geometry = new THREE.SphereGeometry(0.5 * scale, 32, 32);
+                        shape = new CANNON.Sphere(0.5 * scale);
+                        break;
+                    case 'cube':
+                        geometry = new THREE.BoxGeometry(scale, scale, scale);
+                        shape = new CANNON.Box(new CANNON.Vec3(scale/2, scale/2, scale/2));
+                        break;
+                    case 'pyramid':
+                        geometry = new THREE.ConeGeometry(0.5 * scale, scale, 4);
+                        shape = new CANNON.Box(new CANNON.Vec3(scale/2, scale/2, scale/2));
+                        break;
+                    case 'cylinder':
+                        geometry = new THREE.CylinderGeometry(0.4 * scale, 0.4 * scale, scale, 32);
+                        shape = new CANNON.Cylinder(0.4 * scale, 0.4 * scale, scale, 8);
+                        break;
+                    case 'torus':
+                        geometry = new THREE.TorusGeometry(0.4 * scale, 0.15 * scale, 16, 32);
+                        shape = new CANNON.Sphere(0.5 * scale);
+                        break;
+                    case 'capsule':
+                        const capsuleGeometry = new THREE.CylinderGeometry(0.3 * scale, 0.3 * scale, scale * 0.6, 32);
+                        const sphereTop = new THREE.SphereGeometry(0.3 * scale, 32, 32);
+                        const sphereBottom = new THREE.SphereGeometry(0.3 * scale, 32, 32);
+                        sphereTop.translate(0, scale * 0.3, 0);
+                        sphereBottom.translate(0, -scale * 0.3, 0);
+                        geometry = new THREE.BufferGeometry();
+                        geometry = THREE.BufferGeometryUtils ? 
+                            THREE.BufferGeometryUtils.mergeBufferGeometries([capsuleGeometry, sphereTop, sphereBottom]) :
+                            capsuleGeometry;
+                        shape = new CANNON.Sphere(0.5 * scale);
+                        break;
+                }
+
+                const material = new THREE.MeshStandardMaterial({ 
+                    color: color,
+                    roughness: materialSettings.roughness,
+                    metalness: materialSettings.metalness,
+                    transparent: materialKey === 'glass',
+                    opacity: materialKey === 'glass' ? 0.72 : 1,
+                    emissive: new THREE.Color(gameState.gravityEnabled ? materialSettings.color : 0x36aaff),
+                    emissiveIntensity: gameState.gravityEnabled ? 0 : 0.82
+                });
+                
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                mesh.position.copy(position);
+                scene.add(mesh);
+
+                const body = new CANNON.Body({
+                    mass: configMass,
+                    shape: shape,
+                    position: new CANNON.Vec3(position.x, position.y, position.z),
+                    linearDamping: materialKey === 'slime' ? 0.42 : 0.1,
+                    angularDamping: materialKey === 'slime' ? 0.62 : 0.1,
+                    material: materialPhysics[materialKey]
+                });
+                body.userData = { materialKey: materialKey, baseMass: configMass };
+                refreshContactMaterials();
+                world.addBody(body);
+                // Outline for grabbed state
+                const outlineGeometry = geometry.clone();
+                const outlineMaterial = new THREE.MeshBasicMaterial({ 
+                    color: 0xffffff,
+                    side: THREE.BackSide
+                });
+                const outline = new THREE.Mesh(outlineGeometry, outlineMaterial);
+                outline.scale.multiplyScalar(1.05);
+                outline.visible = false;
+                mesh.add(outline);
+
+                const shapeObj = {
+                    mesh: mesh,
+                    body: body,
+                    outline: outline,
+                    type: type,
+                    materialKey: materialKey,
+                    baseMass: configMass,
+                    sizeScale: scale,
+                    shattered: false,
+                    pendingShatter: false
+                };
+
+                gameState.shapes.push(shapeObj);
+                body.addEventListener('collide', (event) => {
+                    const now = performance.now();
+                    if (now - shapeObj.lastSoundAt < 140 || shapeObj.shattered) return;
+                    const relativeSpeed = body.velocity.length();
+                    if (relativeSpeed < 1.25) return;
+                    shapeObj.lastSoundAt = now;
+                    if (materialKey === 'glass' && relativeSpeed >= Number(gameConfig.glassFragility || 12)) {
+                        shapeObj.pendingShatter = true;
+                        return;
+                    }
+                    const soundPitch = 1 / Math.max(0.72, Math.min(1.45, shapeObj.sizeScale || 1));
+                    playSound(materialSoundIds[materialKey], Math.min(0.8, relativeSpeed / 16), body.position, soundPitch);
+                });
+                updateShapeCount();
+                
+                return shapeObj;
+            }
+
+            function updateShapeCount() {
+                document.getElementById('shape-count').textContent = `Shapes: ${gameState.shapes.length}`;
+            }
+
+            function setGravityEnabled(enabled) {
+                gameState.gravityEnabled = !!enabled;
+                const strength = Number.isFinite(Number(gameConfig.gravityStrength)) ? Number(gameConfig.gravityStrength) : 9.8;
+                world.gravity.set(0, gameState.gravityEnabled ? -strength : 0, 0);
+                gameState.shapes.forEach(shape => {
+                    shape.mesh.material.emissive.set(gameState.gravityEnabled ? getMaterialSettings(shape.materialKey).color : 0x36aaff);
+                    shape.mesh.material.emissiveIntensity = gameState.gravityEnabled ? 0 : 0.82;
+                    shape.body.wakeUp();
+                });
+                const button = document.getElementById('gravity-toggle');
+                button.classList.toggle('active', gameState.gravityEnabled);
+                button.querySelector('span:last-child').textContent = gameState.gravityEnabled ? 'Gravity ON' : 'Zero-G';
+                button.querySelector('.tool-icon').textContent = gameState.gravityEnabled ? '↓' : '✦';
+            }
+
+            function setVacuumActive(active) {
+                gameState.vacuumActive = !!active;
+                document.getElementById('vacuum-button').classList.toggle('active', gameState.vacuumActive);
+                if (gameState.vacuumActive) startVacuumSound();
+                else stopVacuumSound();
+            }
+
+            function setExplosionArmed(armed) {
+                gameState.explosionArmed = !!armed;
+                const button = document.getElementById('explosion-button');
+                button.classList.toggle('active', gameState.explosionArmed);
+                button.querySelector('span:last-child').textContent = gameState.explosionArmed ? 'Click to Place' : 'Explosion';
+            }
+
+            function clearAllShapes() {
+                if (gameState.grabbedShape) {
+                    gameState.grabbedShape.outline.visible = false;
+                    gameState.grabbedShape = null;
+                    document.getElementById('throw-charge').classList.remove('visible');
+                }
+                gameState.shapes.forEach(shape => {
+                    world.removeBody(shape.body);
+                    scene.remove(shape.mesh);
+                    shape.mesh.geometry.dispose();
+                    shape.mesh.material.dispose();
+                    shape.outline.geometry.dispose();
+                    shape.outline.material.dispose();
+                });
+                gameState.shapes.length = 0;
+                updateShapeCount();
+            }
+
+            // Raycaster for object selection
+            const raycaster = new THREE.Raycaster();
+            const mouse = new THREE.Vector2();
+
+            function getShapeUnderMouse(event) {
+                const rect = canvas.getBoundingClientRect();
+                mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+                mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+                raycaster.setFromCamera(mouse, camera);
+
+                const meshes = gameState.shapes.map(s => s.mesh);
+                const intersects = raycaster.intersectObjects(meshes);
+
+                if (intersects.length > 0) {
+                    return gameState.shapes.find(s => s.mesh === intersects[0].object);
+                }
+                return null;
+            }
+
+            function getExplosionPoint(event) {
+                if (gameState.pointerLocked) mouse.set(0, 0);
+                else {
+                    const rect = canvas.getBoundingClientRect();
+                    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+                    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+                }
+                raycaster.setFromCamera(mouse, camera);
+                const shapeHits = raycaster.intersectObjects(gameState.shapes.map(shape => shape.mesh), true);
+                if (shapeHits.length) return shapeHits[0].point.clone();
+                const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+                const floorHit = new THREE.Vector3();
+                if (raycaster.ray.direction.y < -0.04 && raycaster.ray.intersectPlane(floorPlane, floorHit) && floorHit.distanceTo(camera.position) < 30) return floorHit;
+                return camera.position.clone().add(raycaster.ray.direction.clone().multiplyScalar(8));
+            }
+
+            function createExplosion(point) {
+                const radius = Math.max(0.5, Number(gameConfig.explosionRadius) || 8);
+                const force = Math.max(0, Number(gameConfig.explosionForce) || 18);
+                gameState.shapes.forEach(shape => {
+                    const body = shape.body;
+                    if (body.type !== CANNON.Body.DYNAMIC) return;
+                    const dx = body.position.x - point.x, dy = body.position.y - point.y, dz = body.position.z - point.z;
+                    const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                    if (distance > radius) return;
+                    const falloff = Math.max(0, 1 - distance / radius);
+                    let nx = distance > 0.001 ? dx / distance : (Math.random() - 0.5);
+                    let ny = distance > 0.001 ? dy / distance : 0.45;
+                    let nz = distance > 0.001 ? dz / distance : (Math.random() - 0.5);
+                    ny += 0.18;
+                    const length = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+                    body.applyImpulse(new CANNON.Vec3(nx / length * force * falloff, ny / length * force * falloff, nz / length * force * falloff), body.position);
+                    body.wakeUp();
+                });
+                const ring = new THREE.Mesh(new THREE.RingGeometry(0.82, 1, 48), new THREE.MeshBasicMaterial({ color: 0xffad68, transparent: true, opacity: 0.88, side: THREE.DoubleSide, depthWrite: false }));
+                ring.position.copy(point);
+                ring.quaternion.copy(camera.quaternion);
+                ring.scale.setScalar(0.12);
+                scene.add(ring);
+                explosionEffects.push({ mesh: ring, life: 0.55, maxLife: 0.55, radius });
+                playSound('explosion_boom_sfx', 0.82, point);
+            }
+
+            // Mouse input: begin a grab on press; release launches the charged throw.
+            canvas.addEventListener('mousedown', (event) => {
+                if (event.button !== 0) return;
+                if (gameState.explosionArmed) {
+                    createExplosion(getExplosionPoint(event));
+                    setExplosionArmed(false);
+                    gameState.skipNextCanvasLock = !gameState.pointerLocked;
+                    return;
+                }
+                if (!gameState.pointerLocked) return;
+                const shape = getShapeUnderMouse(event);
+                if (shape) {
+                    grabShape(shape);
+                } else if (!gameState.grabbedShape) {
+                    const spawnPos = new THREE.Vector3(0, 0, -3).applyQuaternion(camera.quaternion).add(camera.position);
+                    spawnPos.y = Math.max(spawnPos.y, Number(gameConfig.spawnHeight) || 1.6);
+                    createShape(gameState.selectedShape, spawnPos);
+                }
+            });
+            document.addEventListener('mouseup', (event) => {
+                if (event.button === 0 && gameState.grabbedShape) releaseShape();
+            });
+
+            function grabShape(shape) {
+                if (gameState.grabbedShape) {
+                    releaseShape();
+                }
+
+                gameState.grabbedShape = shape;
+                playSound('grab_whoosh_sfx', 0.22, shape.body.position, 1 / Math.max(0.72, shape.sizeScale || 1));
+                gameState.grabStartedAt = performance.now();
+                gameState.throwAim.x = 0;
+                gameState.throwAim.y = 0;
+                gameState.throwMouseDistance = 0;
+                shape.outline.visible = true;
+                shape.body.mass = 0;
+                shape.body.type = CANNON.Body.KINEMATIC;
+                shape.body.updateMassProperties();
+                shape.body.velocity.set(0, 0, 0);
+                shape.body.angularVelocity.set(0, 0, 0);
+                canvas.style.cursor = 'grabbing';
+            }
+
+            function releaseShape() {
+                if (!gameState.grabbedShape) return;
+                const shape = gameState.grabbedShape;
+                const heldSeconds = Math.min(2, Math.max(0, (performance.now() - gameState.grabStartedAt) / 1000));
+                const power = heldSeconds / 2;
+                const multiplier = Number(gameConfig.throwPowerMultiplier) || 12;
+                const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).normalize();
+                const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion).normalize();
+                const up = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion).normalize();
+                const aim = forward.clone().addScaledVector(right, Math.max(-1, Math.min(1, gameState.throwAim.x)) * 0.65).addScaledVector(up, Math.max(-1, Math.min(1, gameState.throwAim.y)) * 0.65).normalize();
+                const swipeBoost = Math.min(0.3, gameState.throwMouseDistance / 900);
+                const throwSpeed = 2 + power * multiplier * (1 + swipeBoost);
+                shape.outline.visible = false;
+                shape.body.type = CANNON.Body.DYNAMIC;
+                shape.body.mass = shape.baseMass;
+                shape.body.updateMassProperties();
+                shape.body.velocity.set(aim.x * throwSpeed, aim.y * throwSpeed, aim.z * throwSpeed);
+                playSound('throw_whoosh_sfx', 0.18 + power * 0.48, shape.body.position, 1 / Math.max(0.72, shape.sizeScale || 1));
+                shape.body.wakeUp();
+                shape.mesh.material.emissive.set(gameState.gravityEnabled ? getMaterialSettings(shape.materialKey).color : 0x36aaff);
+                shape.mesh.material.emissiveIntensity = gameState.gravityEnabled ? 0 : 0.82;
+                document.getElementById('throw-charge').classList.remove('visible');
+                document.getElementById('throw-charge-fill').style.width = '0%';
+                gameState.grabbedShape = null;
+                gameState.throwAim.x = 0;
+                gameState.throwAim.y = 0;
+                gameState.throwMouseDistance = 0;
+                canvas.style.cursor = 'crosshair';
+            }
+
+            // Pointer lock
+            function requestPointerLock() {
+                canvas.requestPointerLock = canvas.requestPointerLock ||
+                    canvas.mozRequestPointerLock ||
+                    canvas.webkitRequestPointerLock;
+                canvas.requestPointerLock();
+            }
+
+            document.addEventListener('pointerlockchange', () => {
+                gameState.pointerLocked = document.pointerLockElement === canvas;
+                if (!gameState.pointerLocked && gameState.grabbedShape) {
+                    releaseShape();
+                }
+            });
+
+            document.getElementById('start-button').addEventListener('click', () => {
+                document.getElementById('instructions').classList.add('hidden');
+                requestPointerLock();
+            });
+
+            canvas.addEventListener('click', () => {
+                if (gameState.skipNextCanvasLock) {
+                    gameState.skipNextCanvasLock = false;
+                    return;
+                }
+                if (!gameState.pointerLocked) requestPointerLock();
+            });
+
+            // Mouse movement for camera
+            document.addEventListener('mousemove', (e) => {
+                if (!gameState.pointerLocked) return;
+                const dx = e.movementX || 0;
+                const dy = e.movementY || 0;
+                gameState.mouseMovement.x = dx;
+                gameState.mouseMovement.y = dy;
+                if (gameState.grabbedShape) {
+                    gameState.throwAim.x += dx * 0.0015;
+                    gameState.throwAim.y -= dy * 0.0015;
+                    gameState.throwMouseDistance += Math.sqrt(dx * dx + dy * dy);
+                }
+            });
+
+            // Keyboard controls
+            document.addEventListener('keydown', (e) => {
+                const key = e.key.toLowerCase();
+                gameState.keys[key] = true;
+                if (key === 'g' && !e.repeat) setGravityEnabled(!gameState.gravityEnabled);
+                if (key === 'v') setVacuumActive(true);
+                if (key === 'e' && !e.repeat) setExplosionArmed(!gameState.explosionArmed);
+                
+                // Number keys for shape selection
+                const numKey = parseInt(e.key);
+                if (numKey >= 1 && numKey <= 6) {
+                    const shapes = ['sphere', 'cube', 'pyramid', 'cylinder', 'torus', 'capsule'];
+                    gameState.selectedShape = shapes[numKey - 1];
+                    updateSelectedButton();
+                }
+            });
+
+            document.addEventListener('keyup', (e) => {
+                gameState.keys[e.key.toLowerCase()] = false;
+                if (e.key.toLowerCase() === 'v') setVacuumActive(false);
+            });
+            document.addEventListener('pointerup', () => {
+                if (gameState.vacuumActive) setVacuumActive(false);
+            });
+
+            // Shape and material selectors
+            const shapeButtons = document.querySelectorAll('.shape-button');
+            shapeButtons.forEach(button => {
+                button.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    gameState.selectedShape = button.dataset.shape;
+                    updateSelectedButton();
+                });
+            });
+            const materialButtons = document.querySelectorAll('.material-button');
+            materialButtons.forEach(button => {
+                button.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    gameState.selectedMaterial = button.dataset.material;
+                    materialButtons.forEach(item => item.classList.toggle('selected', item === button));
+                });
+            });
+
+            function updateSelectedButton() {
+                shapeButtons.forEach(button => {
+                    button.classList.toggle('selected', button.dataset.shape === gameState.selectedShape);
+                });
+            }
+
+            document.getElementById('size-slider').addEventListener('input', event => {
+                gameState.selectedSize = Math.max(0.5, Math.min(2, Number(event.target.value) || 1));
+                document.getElementById('size-value').textContent = `${gameState.selectedSize.toFixed(1)}×`;
+            });
+            document.getElementById('gravity-toggle').addEventListener('click', event => {
+                event.stopPropagation();
+                setGravityEnabled(!gameState.gravityEnabled);
+            });
+            const vacuumButton = document.getElementById('vacuum-button');
+            vacuumButton.addEventListener('pointerdown', event => { event.preventDefault(); event.stopPropagation(); setVacuumActive(true); });
+            vacuumButton.addEventListener('pointerup', () => setVacuumActive(false));
+            vacuumButton.addEventListener('pointercancel', () => setVacuumActive(false));
+            document.getElementById('explosion-button').addEventListener('click', event => { event.stopPropagation(); setExplosionArmed(!gameState.explosionArmed); });
+            const clearConfirm = document.getElementById('clear-confirm');
+            document.getElementById('clear-all-button').addEventListener('click', event => { event.stopPropagation(); clearConfirm.classList.remove('hidden'); });
+            document.getElementById('cancel-clear-button').addEventListener('click', event => { event.stopPropagation(); clearConfirm.classList.add('hidden'); });
+            document.getElementById('confirm-clear-button').addEventListener('click', event => { event.stopPropagation(); clearAllShapes(); clearConfirm.classList.add('hidden'); });
+
+            // Camera rotation
+            const euler = new THREE.Euler(0, 0, 0, 'YXZ');
+            const PI_2 = Math.PI / 2;
+
+            function updateCamera(deltaTime) {
+                if (!gameState.pointerLocked) return;
+
+                // Mouse look
+                const sensitivity = 0.002;
+                euler.setFromQuaternion(camera.quaternion);
+                euler.y -= gameState.mouseMovement.x * sensitivity;
+                euler.x -= gameState.mouseMovement.y * sensitivity;
+                euler.x = Math.max(-PI_2, Math.min(PI_2, euler.x));
+                camera.quaternion.setFromEuler(euler);
+
+                gameState.mouseMovement.x = 0;
+                gameState.mouseMovement.y = 0;
+
+                // Movement
+                const moveSpeed = (gameConfig.cameraMoveSpeed || 5) * deltaTime;
+                const direction = new THREE.Vector3();
+
+                // Forward is the camera's local -Z direction, so positive input
+                // here moves along the computed forward vector instead of backward.
+                if (gameState.keys['w']) direction.z += 1;
+                if (gameState.keys['s']) direction.z -= 1;
+                if (gameState.keys['a']) direction.x -= 1;
+                if (gameState.keys['d']) direction.x += 1;
+                if (gameState.keys[' ']) direction.y += 1;
+                if (gameState.keys['shift']) direction.y -= 1;
+
+                direction.normalize();
+                direction.multiplyScalar(moveSpeed);
+
+                // Apply rotation to horizontal movement
+                const forward = new THREE.Vector3(0, 0, -1);
+                forward.applyQuaternion(camera.quaternion);
+                forward.y = 0;
+                forward.normalize();
+
+                const right = new THREE.Vector3(1, 0, 0);
+                right.applyQuaternion(camera.quaternion);
+                right.y = 0;
+                right.normalize();
+
+                camera.position.add(forward.multiplyScalar(direction.z));
+                camera.position.add(right.multiplyScalar(direction.x));
+                camera.position.y += direction.y;
+            }
+
+            // Update grabbed shape position
+            function updateGrabbedShape() {
+                if (!gameState.grabbedShape) return;
+
+                const distance = 3;
+                const targetPos = new THREE.Vector3(0, 0, -distance);
+                targetPos.applyQuaternion(camera.quaternion);
+                targetPos.add(camera.position);
+                const shape = gameState.grabbedShape;
+                shape.body.position.copy(targetPos);
+                shape.body.quaternion.copy(camera.quaternion);
+                shape.body.aabbNeedsUpdate = true;
+                const power = Math.min(1, Math.max(0, (performance.now() - gameState.grabStartedAt) / 2000));
+                const glow = 0.12 + power * 1.25 + Math.sin(performance.now() * 0.012) * 0.08 * power;
+                shape.mesh.material.emissive.set(gameState.gravityEnabled ? getMaterialSettings(shape.materialKey).color : 0x36aaff);
+                shape.mesh.material.emissiveIntensity = gameState.gravityEnabled ? glow : Math.max(0.82, glow);
+                document.getElementById('throw-charge').classList.add('visible');
+                document.getElementById('throw-charge-fill').style.width = `${Math.round(power * 100)}%`;
+            }
+
+            function getVacuumPoint() {
+                const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).normalize();
+                return camera.position.clone().addScaledVector(forward, 3.2);
+            }
+
+            function applyVacuumForces() {
+                if (!gameState.vacuumActive) return;
+                const target = getVacuumPoint();
+                const strength = Math.max(0, Number(gameConfig.vacuumPullStrength) || 28);
+                gameState.shapes.forEach(shape => {
+                    const body = shape.body;
+                    if (body.type !== CANNON.Body.DYNAMIC) return;
+                    const dx = target.x - body.position.x, dy = target.y - body.position.y, dz = target.z - body.position.z;
+                    const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                    if (distance < 0.3) return;
+                    const nx = dx / distance, ny = dy / distance, nz = dz / distance;
+                    const pull = strength * Math.min(1.35, 0.35 + distance * 0.055);
+                    const swirl = pull * 0.24;
+                    const invHorizontal = 1 / (Math.sqrt(dx * dx + dz * dz) || 1);
+                    body.force.x += nx * pull - dz * invHorizontal * swirl;
+                    body.force.y += ny * pull;
+                    body.force.z += nz * pull + dx * invHorizontal * swirl;
+                    body.wakeUp();
+                });
+            }
+
+            function updateToolEffects(deltaTime) {
+                if (gameState.vacuumActive) {
+                    vacuumEffectTime += deltaTime;
+                    const center = getVacuumPoint();
+                    vacuumCore.visible = true;
+                    vacuumCore.position.copy(center);
+                    vacuumCore.scale.setScalar(1 + Math.sin(vacuumEffectTime * 9) * 0.18);
+                    vacuumParticles.forEach((particle, index) => {
+                        const angle = vacuumEffectTime * (3.5 + (index % 4) * 0.22) + index * Math.PI * 2 / vacuumParticles.length;
+                        const radius = 0.28 + (index % 8) * 0.19;
+                        particle.visible = true;
+                        particle.position.set(center.x + Math.cos(angle) * radius, center.y + Math.sin(angle * 1.7) * 0.24, center.z + Math.sin(angle) * radius);
+                        particle.scale.setScalar(0.55 + (index % 4) * 0.2);
+                    });
+                } else {
+                    vacuumCore.visible = false;
+                    vacuumParticles.forEach(particle => { particle.visible = false; });
+                }
+                for (let i = explosionEffects.length - 1; i >= 0; i--) {
+                    const effect = explosionEffects[i];
+                    effect.life -= deltaTime;
+                    const progress = 1 - Math.max(0, effect.life) / effect.maxLife;
+                    effect.mesh.scale.setScalar(Math.max(0.12, effect.radius * progress));
+                    effect.mesh.material.opacity = Math.max(0, 0.88 * (1 - progress));
+                    if (effect.life <= 0) {
+                        scene.remove(effect.mesh);
+                        effect.mesh.geometry.dispose();
+                        effect.mesh.material.dispose();
+                        explosionEffects.splice(i, 1);
+                    }
+                }
+            }
+
+            // Sync physics with visuals
+            function updatePhysics(deltaTime) {
+                gameState.shapes.forEach(shape => {
+                    shape.mesh.position.copy(shape.body.position);
+                    shape.mesh.quaternion.copy(shape.body.quaternion);
+                });
+                updateParticles(deltaTime);
+                updateToolEffects(deltaTime);
+            }
+
+            // To tune gameplay in a plain HTML build, edit the standalone gameConfig object near the top of run().
+
+            // Window resize handler
+            window.addEventListener('resize', () => {
+                camera.aspect = canvas.clientWidth / canvas.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+            });
+
+            // Game loop
+            let lastTime = performance.now();
+            const fixedTimeStep = 1 / 60;
+            let accumulator = 0;
+
+            function gameLoop(currentTime) {
+                const deltaTime = Math.min((currentTime - lastTime) / 1000, 0.11);
+                lastTime = currentTime;
+
+                accumulator += deltaTime;
+
+                // Fixed timestep physics updates
+                while (accumulator >= fixedTimeStep) {
+                    applyVacuumForces();
+                    world.step(fixedTimeStep);
+                    accumulator -= fixedTimeStep;
+                }
+                gameState.shapes.slice().forEach(shape => {
+                    if (shape.pendingShatter) shatterShape(shape);
+                });
+
+                // Update camera
+                updateCamera(deltaTime);
+
+                // Update grabbed shape
+                updateGrabbedShape();
+
+                // Sync physics with visuals
+                updatePhysics(deltaTime);
+
+                // Render
+                renderer.render(scene, camera);
+
+                requestAnimationFrame(gameLoop);
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Start immediately when opened as a regular HTML page.
+        run();
+    </script>
+</body>
+</html>
+
+
+</body>
+</html>
